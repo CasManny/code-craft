@@ -1,0 +1,125 @@
+import { ConvexError, convexToJson, v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+
+export const createSnippet = mutation({
+  args: { title: v.string(), language: v.string(), code: v.string() },
+  handler: async (ctx, args) => {
+    const idenity = await ctx.auth.getUserIdentity();
+    if (!idenity) {
+      return new ConvexError("Not authorized");
+    }
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id")
+      .filter((q) => q.eq(q.field("userId"), idenity.subject))
+      .first();
+
+    if (!user) {
+      throw new ConvexError("User not found");
+    }
+    const snippetId = await ctx.db.insert("snippets", {
+      userId: idenity.subject,
+      userName: user.name,
+      title: args.title,
+      language: args.language,
+      code: args.code,
+    });
+
+    return snippetId;
+  },
+});
+
+export const getSnippets = query({
+  handler: async (ctx) => {
+    // const idenity = await ctx.auth.getUserIdentity();
+    // console.log(idenity?.subject);
+
+    // if (!idenity) {
+    //   return new ConvexError("Unauthorized");
+    // }
+    const snippets = await ctx.db.query("snippets").order("desc").collect();
+    return snippets;
+  },
+});
+
+export const isSnippetStarred = query({
+  args: {
+    snippetId: v.id("snippets"),
+  },
+  handler: async (ctx, args) => {
+    const idenity = await ctx.auth.getUserIdentity();
+    if (!idenity) {
+      return false;
+    }
+
+    const star = await ctx.db
+      .query("stars")
+      .withIndex("by_user_id_and_snippetId", (q) =>
+        q.eq("userId", idenity.subject).eq("snippetId", args.snippetId)
+      )
+      .first();
+
+    return !!star;
+  },
+});
+
+export const getSnippetStarCount = query({
+  args: { snippetId: v.id("snippets") },
+  handler: async (ctx, args) => {
+    const stars = await ctx.db
+      .query("stars")
+      .withIndex("by_snippet_id", (q) => q.eq("snippetId", args.snippetId))
+      .collect();
+    return stars.length;
+  },
+});
+
+export const deleteSnippet = mutation({
+  args: { snippetId: v.id("snippets") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authorized");
+    }
+    const snippet = await ctx.db.get(args.snippetId);
+    if (!snippet) throw new Error("snippet not found");
+    if (snippet.userId !== identity.subject) {
+      throw new Error("Not authorized to delete the snippet");
+    }
+
+    const comments = await ctx.db
+      .query("snippetComments")
+      .withIndex("by_snippet_id", (q) => q.eq("snippetId", args.snippetId))
+      .collect();
+
+    for (const comment of comments) {
+      await ctx.db.delete(comment._id);
+    }
+
+    const stars = await ctx.db
+      .query("stars")
+      .withIndex("by_snippet_id", (q) => q.eq("snippetId", args.snippetId))
+      .collect();
+
+    for (const star of stars) {
+      await ctx.db.delete(star._id);
+    }
+
+    await ctx.db.delete(args.snippetId);
+  },
+});
+
+export const starSnippet = mutation({
+  args: { snippetId: v.id("snippets") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authorized");
+    }
+    const existingStar = await ctx.db
+      .query("stars")
+      .withIndex("by_user_id_and_snippetId", (q) =>
+        q.eq("userId", identity.subject).eq("snippetId", args.snippetId)
+      )
+  },
+});
