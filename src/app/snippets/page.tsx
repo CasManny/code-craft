@@ -104,7 +104,7 @@ const SnippetsPage = () => {
               <span className="text-sm text-gray-400">Languages:</span>
             </div>
 
-            {/* {popularLanguages.map((lang) => (
+            {popularLanguages.map((lang) => (
               <button
                 key={lang}
                 onClick={() =>
@@ -128,7 +128,7 @@ const SnippetsPage = () => {
                   <span className="text-sm">{lang}</span>
                 </div>
               </button>
-            ))} */}
+            ))}
 
             {selectedLanguage && (
               <button
